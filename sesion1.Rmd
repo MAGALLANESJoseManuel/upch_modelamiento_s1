@@ -1,0 +1,267 @@
+---
+title: "Sesión 1"
+output:
+  html_document:
+    df_print: paged
+---
+
+# Modelos epidemiológicos deterministas
+* Profesor: **Mauricio Santos Vega**
+* Ejercicios de Clase: *José Manuel Magallanes*
+
+Muchas de las teorías centrales sobre la propagación de epidemias se expresan en un sistema de ecuaciones diferenciales ordinarias conocido como modelo compartimental. Esta sesión presenta técnicas para resolver numéricamente sistemas de ecuaciones diferenciales no lineales con un solucionador de tamaño de paso adaptativo.
+
+```{r}
+rm(list = ls())
+# biblioteca a utilizar
+library(deSolve)
+```
+
+## La Ecuación Básica
+
+```{r}
+SIR_basico <- function (reloj, variablesSIR, BetaGamma_list) {
+  S <- variablesSIR[1]
+  I <- variablesSIR[2]
+  R <- variablesSIR[3]
+  
+  with(
+      BetaGamma_list,
+     { # sistema de ecuaciones
+      dS <- -Beta*S*I
+      dI <- Beta*S*I-Gamma*I
+      dR <- Gamma*I
+      dx <- c(dS,dI,dR) # combinar resultados
+      list(dx)          # valor a retornar
+       }
+    )
+}
+```
+
+## Input de la Ecuación
+
+```{r}
+reloj <- seq(0,120,by=2) 
+BetaGamma_params_1 <- list(Beta=0.3,Gamma=1/7) 
+variablesSIR_1 <- c(S=9999/10000,I=1/10000,R=0) 
+
+```
+
+## Calculando Resultado
+
+```{r}
+resultadoSIR_1 <- as.data.frame(ode(y = variablesSIR_1, # valores iniciales
+                                  times = reloj,
+                                  func = SIR_basico,
+                                  parms = BetaGamma_params_1))
+head(resultadoSIR_1,10)
+```
+```{r}
+library(ggplot2)
+library(gridExtra)
+betaValue=round(BetaGamma_params_1[[1]],2)
+gammaValue=round(BetaGamma_params_1[[2]],2)
+
+textParams=paste0("\u03B2:",betaValue," - \u03B3:",gammaValue) 
+
+base=ggplot(data=resultadoSIR_1) + theme_light() 
+
+plot1=base + geom_point(aes(x=time,y=I)) + labs(title = "Infectados en el tiempo")   
+plot2=base + geom_point(aes(x=S,y=I)) + labs(title = "Susceptibles : Infectados")          # 
+
+grid.arrange(plot1, plot2, nrow = 1,top=textParams)
+```
+```{r}
+
+base = ggplot(resultadoSIR_1,aes(x=time))  + theme_light() + 
+    labs(title =  "SIR Model: Basic",
+        subtitle = textParams)
+                               
+timePlot =  base +  geom_line(aes(y=S,colour="Susceptible")) +
+                    geom_line(aes(y=I,colour="Infected"))  +
+                    geom_line(aes(y=R,colour="Recovered")) +
+                    scale_colour_manual(name="Compartments",
+                                        breaks=c("Susceptible","Infected","Recovered"),
+                                        values=c("blue","red","darkgreen"))
+timePlot
+```
+
+
+<div class="alert-success">
+**Ejercicio 1.**
+Explore la dinámica del sistema para diferentes valores de los parámetros β y γ mediante simular y trazar trayectorias como series de tiempo y en espacio de fase
+</div>
+
+
+```{r}
+BetaGamma_params_2 <- list(Beta=0.5,Gamma=1/7) 
+BetaGamma_params_3 <- list(Beta=0.3,Gamma=0.0857)
+BetaGamma_params_4 <- list(Beta=0.6,Gamma=2/7) 
+
+resultadoSIR_2 <- as.data.frame(ode(y = variablesSIR_1, 
+                                  times = reloj,
+                                  func = SIR_basico,
+                                  parms = BetaGamma_params_2))
+resultadoSIR_3 <- as.data.frame(ode(y = variablesSIR_1, 
+                                  times = reloj,
+                                  func = SIR_basico,
+                                  parms = BetaGamma_params_3))
+resultadoSIR_4 <- as.data.frame(ode(y = variablesSIR_1, 
+                                  times = reloj,
+                                  func = SIR_basico,
+                                  parms = BetaGamma_params_4))
+```
+
+
+```{r}
+resultadoSIR_1[,c('beta','gamma')]=BetaGamma_params_1
+resultadoSIR_2[,c('beta','gamma')]=BetaGamma_params_2
+resultadoSIR_3[,c('beta','gamma')]=BetaGamma_params_3
+resultadoSIR_4[,c('beta','gamma')]=BetaGamma_params_4
+
+resultadoSIR=rbind(resultadoSIR_1,resultadoSIR_2,resultadoSIR_3,resultadoSIR_4)
+resultadoSIR$beta=paste0("beta:",resultadoSIR$beta)
+resultadoSIR$gamma=paste0("gamma:",round(resultadoSIR$gamma,2)) 
+```
+
+```{r, fig.width=20}
+maxI=resultadoSIR[resultadoSIR$I==max(resultadoSIR$I),c('time')]
+
+
+base=ggplot(data=resultadoSIR) + 
+    theme_light() + 
+    theme(strip.text.x = element_text(size = 16,face='bold')) 
+
+plot1=base + geom_point(aes(x=time,y=I)) + 
+            geom_vline(xintercept = maxI, color='red') + 
+            facet_wrap(gamma~beta,ncol = 1)
+plot2=base + geom_point(aes(x=S,y=I)) + facet_wrap(gamma~beta,ncol = 1)
+grid.arrange(plot1, plot2, nrow = 1)
+```
+
+<div class="alert-success">
+**Ejercicio 2.**
+Explora la dinámica del sistema para un conjunto de β y γ en diferentes condiciones iniciales ¿Qué pasa si existe inmunidad preexistente en la población?
+
+</div>
+
+
+    
+```{r}
+variablesSIR_2 <- c(S=9900/10000,I=100/10000,R=0)
+variablesSIR_3 <- c(S=9899/10000,I=1/10000,R=100)
+variablesSIR_4 <- c(S=6400/10000,I=100/10000,R=3500)
+
+resultadoSIR_1 <- as.data.frame(ode(y = variablesSIR_1, # valores iniciales
+                                  times = reloj,
+                                  func = SIR_basico,
+                                  parms = BetaGamma_params_1))
+
+resultadoSIR_1_2 <- as.data.frame(ode(y = variablesSIR_2, 
+                                  times = reloj,
+                                  func = SIR_basico,
+                                  parms = BetaGamma_params_1))
+resultadoSIR_1_3 <- as.data.frame(ode(y = variablesSIR_3, 
+                                  times = reloj,
+                                  func = SIR_basico,
+                                  parms = BetaGamma_params_1))
+resultadoSIR_1_4 <- as.data.frame(ode(y = variablesSIR_4, 
+                                  times = reloj,
+                                  func = SIR_basico,
+                                  parms = BetaGamma_params_1))
+
+resultadoSIR_1[,c('grupo')]='BASE: poco infectado - sin inmunidad '
+resultadoSIR_1_2[,c('grupo')]='mucho infectado - sin inmunidad'
+resultadoSIR_1_3[,c('grupo')]='poco infectado - con inmunidad'
+resultadoSIR_1_4[,c('grupo')]='mucho infectado - con mucha inmunidad'
+
+resultadoSIR_vars=rbind(resultadoSIR_1,resultadoSIR_1_2,resultadoSIR_1_3,resultadoSIR_1_4)
+
+```
+
+```{r, fig.width=20}
+maxI=resultadoSIR_vars[resultadoSIR_vars$I==max(resultadoSIR_vars$I),c('time')]
+
+
+base=ggplot(data=resultadoSIR_vars) + 
+    theme_light() + 
+    theme(strip.text.x = element_text(size = 16,face='bold')) 
+
+plot1=base + geom_point(aes(x=time,y=I)) + 
+            geom_vline(xintercept = maxI, color='red') + 
+            facet_wrap(~grupo,ncol = 1)
+plot2=base + geom_point(aes(x=S,y=I)) + facet_wrap(~grupo,ncol = 1)
+grid.arrange(plot1, plot2, nrow = 1)
+```
+ 
+ <div class="alert-success">
+**Ejercicio 3.**
+Modificar los códigos dados para estudiar la dinámica de un modelo SIR demográficamente abierto.
+</div>
+
+
+
+```{r}
+SIR_open <- function (reloj, variablesSIR, BetaGammaMu_list) { 
+    S <- variablesSIR[1]
+    I <- variablesSIR[2]
+    R <- variablesSIR[3]
+
+   with(
+      BetaGammaMu_list,
+     { dS <- mu*(S+I+R) -beta*S*I - mu*S
+       dI <- beta*S*I-gamma*I - mu*I
+       dR <- gamma*I - mu*R
+       dx <- c(dS,dI,dR) 
+       list(dx) 
+       }
+     )
+ }
+```
+
+```{r}
+BetaGammaMu_params_1 <- list(beta=0.3,gamma=1/7, mu=1/52)
+BetaGammaMu_params_2 <- list(beta=0.3,gamma=1/7, mu=1/520)
+BetaGammaMu_params_3 <- list(beta=0.3,gamma=1/7, mu=1/5200)
+
+   
+resultadoSIR_open_1 <- as.data.frame(lsoda(y = variablesSIR_1,
+                                           times = reloj,
+                                           func = SIR_open,
+                                           parms = BetaGammaMu_params_1))
+
+resultadoSIR_open_2 <- as.data.frame(lsoda(y = variablesSIR_1,
+                                           times = reloj,
+                                           func = SIR_open,
+                                           parms = BetaGammaMu_params_2))
+
+resultadoSIR_open_3 <- as.data.frame(lsoda(y = variablesSIR_1,
+                                           times = reloj,
+                                           func = SIR_open,
+                                           parms = BetaGammaMu_params_3))
+
+resultadoSIR_open_1[,c('grupo')]='BASE: mu=1/52'
+resultadoSIR_open_2[,c('grupo')]='mu=1/520'
+resultadoSIR_open_3[,c('grupo')]='mu=1/5200'
+
+resultadoSIR_open_params=rbind(resultadoSIR_open_1,resultadoSIR_open_2,resultadoSIR_open_3)
+
+```
+
+```{r, fig.width=20}
+maxI=resultadoSIR_open_params[resultadoSIR_open_params$I==max(resultadoSIR_open_params$I),c('time')]
+
+
+base=ggplot(data=resultadoSIR_open_params) + 
+    theme_light() + 
+    theme(strip.text.x = element_text(size = 16,face='bold')) 
+
+plot1=base + geom_point(aes(x=time,y=I)) + 
+            geom_vline(xintercept = maxI, color='red') + 
+            facet_wrap(~grupo,ncol = 1)
+plot2=base + geom_point(aes(x=S,y=I)) + facet_wrap(~grupo,ncol = 1)
+grid.arrange(plot1, plot2, nrow = 1)
+```
+ 
+  
+ 
